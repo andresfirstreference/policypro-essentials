@@ -8,6 +8,12 @@ const AREAS = ["Human Resources", "Finance & Accounting", "Information Technolog
 const CATEGORIES_HR = ["Employment", "Health and Safety", "Benefits", "Employee Relations", "Accessibility Standards"];
 const JURISDICTIONS = ["Ontario", "All Canada", "Alberta", "British Columbia", "Manitoba", "Federal"];
 
+// Essentials tier limits
+const MAX_READERS = 10;
+const READER_SLOT_PRICE = 29; // per additional reader
+const UPGRADE_THRESHOLD = 1699; // auto-upgrade prompt at this cumulative spend
+const ESSENTIALS_BASE_PRICE = 599;
+
 const initEssentials = () => [
   { id: 1, name: "Workplace Violence Prevention", area: "Human Resources", jurisdiction: "Ontario", category: "Health and Safety", lastUpdate: "Mar 27, 2026", status: "Published", version: "2.1 v", mandatory: true, content: "This policy establishes the organization's commitment to preventing workplace violence in accordance with the Occupational Health and Safety Act (OHSA). All employers in Ontario are required to prepare and review annually a workplace violence policy and develop a program to implement it. This includes measures and procedures to control risks, a means of summoning immediate assistance, and a process for reporting incidents." },
   { id: 2, name: "Workplace Harassment Prevention", area: "Human Resources", jurisdiction: "Ontario", category: "Health and Safety", lastUpdate: "Mar 27, 2026", status: "Published", version: "2.0 v", mandatory: true, content: "This policy outlines the organization's zero-tolerance approach to workplace harassment as required under the OHSA. It defines harassment, outlines reporting procedures, investigation protocols, and consequences for violations. The policy must be reviewed annually and posted in a conspicuous location." },
@@ -223,6 +229,9 @@ export default function App() {
   const [showRestore, setShowRestore] = useState(false);
   const [showEditManual, setShowEditManual] = useState(false);
   const [editManual, setEditManual] = useState(null);
+  const [purchasedReaderSlots, setPurchasedReaderSlots] = useState(0);
+  const [showReaderPaywall, setShowReaderPaywall] = useState(false);
+  const [showUpgradePrompt, setShowUpgradePrompt] = useState(false);
 
   // Forms
   const [newPolicy, setNewPolicy] = useState({ name: "", area: "Human Resources", category: "Employment", jurisdiction: "Ontario" });
@@ -240,6 +249,9 @@ export default function App() {
   const addToCart = p => { if (!cart.find(x => x.id === p.id) && !purchased.includes(p.id)) { setCart(c => [...c, p]); notify(`${p.name} added to cart`); } };
   const removeFromCart = id => setCart(c => c.filter(p => p.id !== id));
   const cartTotal = cart.reduce((s, p) => s + p.price, 0);
+  const totalSpend = purchased.reduce((s, id) => { const p = initAddons().find(x => x.id === id); return s + (p ? p.price : 0); }, 0) + (purchasedReaderSlots * READER_SLOT_PRICE);
+  const readerLimit = MAX_READERS + purchasedReaderSlots;
+  const spendToUpgrade = UPGRADE_THRESHOLD - ESSENTIALS_BASE_PRICE - totalSpend;
 
   const startCheckout = () => { if (cart.length > 0) setCheckoutStep("method"); };
 
@@ -247,11 +259,17 @@ export default function App() {
     setCheckoutStep("processing");
     setTimeout(() => {
       const newIds = cart.map(p => p.id);
+      const newSpend = cart.reduce((s, p) => s + p.price, 0);
       setPurchased(prev => [...prev, ...newIds]);
       const newPols = cart.map(p => ({ ...p, status: "Published", version: "1.0 v", lastUpdate: new Date().toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }), mandatory: false }));
       setMyPolicies(prev => [...prev, ...newPols]);
       setCart([]);
       setCheckoutStep("success");
+      // Check if cumulative spend hit upgrade threshold
+      const cumulative = totalSpend + newSpend;
+      if (cumulative >= (UPGRADE_THRESHOLD - ESSENTIALS_BASE_PRICE)) {
+        setTimeout(() => setShowUpgradePrompt(true), 1500);
+      }
     }, 2500);
   };
 
@@ -302,6 +320,12 @@ export default function App() {
 
   const addReader = () => {
     if (!newReader.name.trim() || !newReader.email.trim()) return;
+    // Check reader limit
+    if (readers.length >= readerLimit) {
+      setShowAddReader(false);
+      setShowReaderPaywall(true);
+      return;
+    }
     const r = { id: Date.now(), ...newReader, status: "Active" };
     setReaders(prev => [...prev, r]);
     if (newReader.group) {
@@ -310,6 +334,16 @@ export default function App() {
     setShowAddReader(false);
     setNewReader({ name: "", email: "", role: "Reader", group: "" });
     notify("Reader added");
+  };
+
+  const purchaseReaderSlots = (qty) => {
+    setPurchasedReaderSlots(prev => prev + qty);
+    const newSpend = totalSpend + (qty * READER_SLOT_PRICE);
+    notify(`${qty} reader seat(s) added to your plan`);
+    setShowReaderPaywall(false);
+    if (newSpend >= (UPGRADE_THRESHOLD - ESSENTIALS_BASE_PRICE)) {
+      setTimeout(() => setShowUpgradePrompt(true), 800);
+    }
   };
 
   const addPolicyToManual = (manualId) => {
@@ -575,7 +609,33 @@ export default function App() {
 
   const renderReaderGroups = () => (<div><h1 style={S.pageTitle}>Reader groups</h1><div style={S.infoBanner}>Manage your list of readers, add new ones, and organize them into groups.</div><div style={{ display: "flex", justifyContent: "flex-end", marginBottom: 16 }}><button style={S.btn()} onClick={() => { const name = prompt("Enter group name:"); if (name) { setGroups(prev => [...prev, { id: Date.now(), name, members: [] }]); notify("Group created"); } }}><Plus size={14} /> Create group</button></div><div style={S.card}><table style={S.table}><thead><tr><th style={S.th}>Group Name</th><th style={S.th}>Members</th><th style={S.th}></th></tr></thead><tbody>{groups.map(g => (<tr key={g.id}><td style={{ ...S.td, fontWeight: 600 }}>{g.name}</td><td style={S.td}>{g.members.length} readers <span onClick={() => handleNav("list-readers", "readers")} style={{ color: BLUE, marginLeft: 8, cursor: "pointer", fontWeight: 500 }}>View List</span></td><td style={{ ...S.td, textAlign: "right" }}><span style={{ color: TEXT_SEC, cursor: "pointer", display: "inline-flex", alignItems: "center", gap: 4 }}><Pencil size={14} /> Edit</span></td></tr>))}</tbody></table></div></div>);
 
-  const renderListReaders = () => (<div><h1 style={S.pageTitle}>List of readers</h1><div style={S.infoBanner}>Manage your list of readers, add new ones, organize them into groups, and assign manuals.</div><div style={{ display: "flex", justifyContent: "flex-end", gap: 10, marginBottom: 16 }}><button style={S.btn()} onClick={() => setShowAddReader(true)}><Plus size={14} /> Add new reader</button></div><div style={S.card}><table style={S.table}><thead><tr><th style={S.th}>Reader</th><th style={S.th}>Email</th><th style={S.th}>Role</th><th style={S.th}>Group</th><th style={S.th}>Status</th></tr></thead><tbody>{readers.map(r => (<tr key={r.id}><td style={{ ...S.td, fontWeight: 600 }}>{r.name}</td><td style={{ ...S.td, color: TEXT_SEC }}>{r.email}</td><td style={S.td}>{r.role}</td><td style={S.td}><span style={{ color: BLUE }}>{r.group}</span></td><td style={S.td}><span style={{ color: r.status === "Active" ? GREEN : AMBER, fontWeight: 500 }}>{r.status}</span></td></tr>))}</tbody></table></div></div>);
+  const renderListReaders = () => {
+    const atLimit = readers.length >= readerLimit;
+    const pct = Math.min((readers.length / readerLimit) * 100, 100);
+    return (<div><h1 style={S.pageTitle}>List of readers</h1>
+      <div style={S.infoBanner}>Manage your list of readers, add new ones, organize them into groups, and assign manuals.</div>
+      {/* Reader seat usage bar */}
+      <div style={{ ...S.card, marginBottom: 16, display: "flex", alignItems: "center", gap: 20 }}>
+        <div style={{ flex: 1 }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
+            <span style={{ fontSize: 13, fontWeight: 600 }}>Reader seats: {readers.length} / {readerLimit}</span>
+            {atLimit && <span style={{ fontSize: 12, fontWeight: 600, color: RED, display: "inline-flex", alignItems: "center", gap: 4 }}><AlertCircle size={13} /> Limit reached</span>}
+            {!atLimit && pct >= 80 && <span style={{ fontSize: 12, fontWeight: 500, color: AMBER }}>{readerLimit - readers.length} remaining</span>}
+          </div>
+          <div style={{ height: 6, background: BG, borderRadius: 3, overflow: "hidden" }}><div style={{ height: "100%", width: `${pct}%`, background: atLimit ? RED : pct >= 80 ? AMBER : BLUE, borderRadius: 3, transition: "width 0.3s ease" }} /></div>
+          {purchasedReaderSlots > 0 && <div style={{ fontSize: 11, color: TEXT_SEC, marginTop: 4 }}>Includes {purchasedReaderSlots} purchased seat{purchasedReaderSlots > 1 ? "s" : ""} (${purchasedReaderSlots * READER_SLOT_PRICE} CAD)</div>}
+        </div>
+        {atLimit ? <button onClick={() => setShowReaderPaywall(true)} style={S.btn()}><Plus size={14} /> Add seats</button> : <button onClick={() => setShowReaderPaywall(true)} style={S.btn("outline")}>Manage seats</button>}
+      </div>
+      <div style={{ display: "flex", justifyContent: "flex-end", gap: 10, marginBottom: 16 }}><button style={S.btn()} onClick={() => { if (readers.length >= readerLimit) { setShowReaderPaywall(true); } else { setShowAddReader(true); } }}><Plus size={14} /> Add new reader</button></div>
+      <div style={S.card}><table style={S.table}><thead><tr><th style={S.th}>Reader</th><th style={S.th}>Email</th><th style={S.th}>Role</th><th style={S.th}>Group</th><th style={S.th}>Status</th></tr></thead><tbody>{readers.map(r => (<tr key={r.id}><td style={{ ...S.td, fontWeight: 600 }}>{r.name}</td><td style={{ ...S.td, color: TEXT_SEC }}>{r.email}</td><td style={S.td}>{r.role}</td><td style={S.td}><span style={{ color: BLUE }}>{r.group}</span></td><td style={S.td}><span style={{ color: r.status === "Active" ? GREEN : AMBER, fontWeight: 500 }}>{r.status}</span></td></tr>))}</tbody></table></div>
+      {/* Upgrade CTA */}
+      {spendToUpgrade > 0 && spendToUpgrade <= 800 && <div style={{ background: "linear-gradient(135deg,#0B1120,#1A3A5C)", borderRadius: 12, padding: "18px 24px", color: WHITE, marginTop: 20, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+        <div><div style={{ fontSize: 13, fontWeight: 700, marginBottom: 2 }}>Need unlimited readers?</div><div style={{ fontSize: 12, color: "#93B8FF" }}>Upgrade to PolicyPro Complete for unlimited readers, 500+ policies, and all jurisdictions. You're ${spendToUpgrade} CAD away.</div></div>
+        <button onClick={() => setShowUpgradePrompt(true)} style={{ ...S.btn(), background: WHITE, color: BLUE, flexShrink: 0 }}>Upgrade</button>
+      </div>}
+    </div>);
+  };
 
   const renderReports = () => {
     const data = getReportData();
@@ -609,15 +669,29 @@ export default function App() {
         {settingsPage === "subscriptions" && (<div>
           <h1 style={S.pageTitle}>Subscriptions</h1>
           <div style={S.infoBanner}>View your current subscription details and manage purchased add-ons.</div>
-          <div style={{ ...S.card, maxWidth: 420, marginBottom: 20 }}>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}><span style={{ fontSize: 16, fontWeight: 700 }}>PolicyPro® Essentials</span><span style={{ ...S.badge(GREEN, GREEN_BG) }}>Active</span></div>
-            <div style={{ fontSize: 24, fontWeight: 700, color: BLUE, marginBottom: 16 }}>$599.00/year</div>
-            {["10 Ontario HR Essential Policies", "Auto Updates", "Customization", "Policy Distribution", "Compliance Monitor"].map(f => <div key={f} style={{ display: "flex", alignItems: "center", gap: 8, padding: "4px 0", fontSize: 13 }}><Check size={14} color={GREEN} />{f}</div>)}
+          <div style={{ display: "flex", gap: 20, marginBottom: 20 }}>
+            <div style={{ ...S.card, maxWidth: 420, flex: 1 }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}><span style={{ fontSize: 16, fontWeight: 700 }}>PolicyPro® Essentials</span><span style={{ ...S.badge(GREEN, GREEN_BG) }}>Active</span></div>
+              <div style={{ fontSize: 24, fontWeight: 700, color: BLUE, marginBottom: 16 }}>${ESSENTIALS_BASE_PRICE}.00/year</div>
+              {[`${MAX_READERS} Reader seats included`, "10 Ontario HR Essential Policies", "Auto Updates and Customization", "Policy Distribution and Compliance Monitor"].map(f => <div key={f} style={{ display: "flex", alignItems: "center", gap: 8, padding: "4px 0", fontSize: 13 }}><Check size={14} color={GREEN} />{f}</div>)}
+            </div>
+            {/* Spend tracker */}
+            <div style={{ ...S.card, flex: 1 }}>
+              <div style={{ fontSize: 14, fontWeight: 700, marginBottom: 12 }}>Cumulative spend</div>
+              <div style={{ fontSize: 28, fontWeight: 700, color: TEXT_C, marginBottom: 4 }}>${totalSpend + ESSENTIALS_BASE_PRICE} <span style={{ fontSize: 14, fontWeight: 500, color: TEXT_SEC }}>/ $1,699 Complete</span></div>
+              <div style={{ height: 8, background: BG, borderRadius: 4, overflow: "hidden", marginBottom: 12 }}><div style={{ height: "100%", width: `${Math.min(((totalSpend + ESSENTIALS_BASE_PRICE) / UPGRADE_THRESHOLD) * 100, 100)}%`, background: spendToUpgrade <= 0 ? GREEN : BLUE, borderRadius: 4, transition: "width 0.3s ease" }} /></div>
+              <div style={{ fontSize: 12, color: TEXT_SEC, marginBottom: 4 }}>Base plan: ${ESSENTIALS_BASE_PRICE}</div>
+              {purchased.length > 0 && <div style={{ fontSize: 12, color: TEXT_SEC, marginBottom: 4 }}>Policy add-ons: ${purchased.reduce((s, id) => { const p = initAddons().find(x => x.id === id); return s + (p ? p.price : 0); }, 0)}</div>}
+              {purchasedReaderSlots > 0 && <div style={{ fontSize: 12, color: TEXT_SEC, marginBottom: 4 }}>Reader seats: ${purchasedReaderSlots * READER_SLOT_PRICE}</div>}
+              {spendToUpgrade > 0 ? <div style={{ fontSize: 13, fontWeight: 600, color: BLUE, marginTop: 8 }}>${spendToUpgrade} away from Complete value</div> : <div style={{ fontSize: 13, fontWeight: 600, color: GREEN, marginTop: 8 }}>You've reached the Complete threshold!</div>}
+              <button onClick={() => setShowUpgradePrompt(true)} style={{ ...S.btn(undefined, true), marginTop: 12 }}><ArrowUpRight size={14} /> {spendToUpgrade <= 0 ? "Upgrade now (you qualify!)" : "View upgrade options"}</button>
+            </div>
           </div>
           {purchased.length > 0 && (<div style={S.card}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}><h3 style={{ fontSize: 15, fontWeight: 700 }}>Purchased add-ons</h3><button onClick={() => setShowRestore(true)} style={S.btn("outline")}><RotateCcw size={14} /> Restore purchases</button></div>
             {purchased.map(id => { const p = initAddons().find(x => x.id === id); return p ? <div key={id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "10px 0", borderBottom: `1px solid ${BORDER}` }}><div><div style={{ fontWeight: 600, fontSize: 13.5 }}>{p.name}</div><div style={{ fontSize: 12, color: TEXT_SEC }}>{p.area}</div></div><div style={{ display: "flex", alignItems: "center", gap: 8 }}><span style={{ fontWeight: 600 }}>${p.price} CAD</span>{accessedPolicies.has(id) && <span style={{ fontSize: 11, color: AMBER, display: "inline-flex", alignItems: "center", gap: 3 }}><Eye size={12} /> Accessed</span>}</div></div> : null; })}
           </div>)}
+          {purchasedReaderSlots > 0 && <div style={{ ...S.card, marginTop: 16 }}><div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}><div><div style={{ fontWeight: 600, fontSize: 13.5 }}>Additional reader seats</div><div style={{ fontSize: 12, color: TEXT_SEC }}>{purchasedReaderSlots} seat{purchasedReaderSlots > 1 ? "s" : ""} purchased</div></div><span style={{ fontWeight: 600 }}>${purchasedReaderSlots * READER_SLOT_PRICE} CAD</span></div></div>}
         </div>)}
         {settingsPage === "billing" && (<div><h1 style={S.pageTitle}>Billing & invoices</h1><div style={S.infoBanner}>View your current subscription invoice details below.</div><div style={S.card}><table style={S.table}><thead><tr><th style={S.th}>Plan</th><th style={S.th}>Billing</th><th style={S.th}>Status</th><th style={S.th}>Periods</th></tr></thead><tbody><tr><td style={S.td}>Essentials Plan</td><td style={S.td}>Annual</td><td style={S.td}><span style={{ color: GREEN, fontWeight: 500 }}>Active</span></td><td style={S.td}>Mar 25, 2026 to Mar 24, 2027</td></tr></tbody></table></div></div>)}
         {settingsPage === "company" && (<div><h1 style={S.pageTitle}>Company information</h1><div style={S.infoBanner}>Use this section to view and update your company information.</div><div style={S.card}><div style={S.fieldGroup}><label style={S.label}>Company name</label><input style={S.input} defaultValue="Canadian Company 2026" /></div><div style={S.fieldGroup}><label style={S.label}>Address</label><input style={S.input} defaultValue="501 Yonge Street" /></div><div style={{ display: "flex", gap: 14 }}><div style={{ ...S.fieldGroup, flex: 1 }}><label style={S.label}>City</label><input style={S.input} defaultValue="Toronto" /></div><div style={{ ...S.fieldGroup, flex: 1 }}><label style={S.label}>Province</label><select style={S.select}><option>Ontario</option></select></div></div><div style={{ textAlign: "right", marginTop: 8 }}><button style={S.btn()}>Save changes</button></div></div></div>)}
@@ -691,6 +765,43 @@ export default function App() {
         <div style={S.fieldGroup}><label style={S.label}>Jurisdiction</label><select style={S.select} value={editManual.jurisdiction} onChange={e => setEditManual({ ...editManual, jurisdiction: e.target.value })}>{JURISDICTIONS.map(j => <option key={j}>{j}</option>)}</select></div>
         <div style={S.fieldGroup}><label style={S.label}>Policies in this manual</label><div style={{ maxHeight: 240, overflowY: "auto", border: `1px solid ${BORDER}`, borderRadius: 8, padding: 8 }}>{myPolicies.map(p => <label key={p.id} style={{ display: "flex", alignItems: "center", gap: 8, padding: "6px 8px", cursor: "pointer", fontSize: 13 }}><input type="checkbox" checked={editManual.policyIds.includes(p.id)} onChange={e => { if (e.target.checked) setEditManual({ ...editManual, policyIds: [...editManual.policyIds, p.id] }); else setEditManual({ ...editManual, policyIds: editManual.policyIds.filter(x => x !== p.id) }); }} />{p.name}</label>)}</div></div>
         <div style={{ display: "flex", gap: 10 }}><button onClick={() => setShowEditManual(false)} style={S.btn("outline")}>Cancel</button><button onClick={() => { setManuals(prev => prev.map(m => m.id === editManual.id ? { ...editManual, lastUpdate: new Date().toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }) } : m)); setShowEditManual(false); notify("Manual updated"); }} style={{ ...S.btn(undefined, true) }}>Save changes ({editManual.policyIds.length} policies)</button></div>
+      </div></div>}
+
+      {/* Reader Paywall Modal */}
+      {showReaderPaywall && <div style={S.modal} onClick={() => setShowReaderPaywall(false)}><div style={S.modalBox(480)} onClick={e => e.stopPropagation()}><ModalHeader title="Reader limit reached" onClose={() => setShowReaderPaywall(false)} />
+        <div style={{ background: AMBER_BG, border: `1px solid ${AMBER}40`, borderRadius: 8, padding: "14px 18px", fontSize: 13, marginBottom: 20, display: "flex", alignItems: "flex-start", gap: 10 }}><AlertCircle size={18} color={AMBER} style={{ flexShrink: 0, marginTop: 1 }} /><div>Your Essentials plan includes {MAX_READERS} reader seats. You currently have {readers.length} readers{purchasedReaderSlots > 0 ? ` (including ${purchasedReaderSlots} purchased seat${purchasedReaderSlots > 1 ? "s" : ""})` : ""}.</div></div>
+        <div style={{ fontSize: 14, fontWeight: 600, marginBottom: 16 }}>Choose how to continue:</div>
+        <div onClick={() => purchaseReaderSlots(5)} style={{ ...S.card, marginBottom: 12, cursor: "pointer", border: `2px solid ${BORDER}`, transition: "all 0.15s" }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}><div><div style={{ fontWeight: 700, fontSize: 14, marginBottom: 2 }}>Add 5 reader seats</div><div style={{ fontSize: 12, color: TEXT_SEC }}>Expand your team access. ${READER_SLOT_PRICE * 5} CAD one-time.</div></div><div style={{ fontWeight: 700, color: BLUE, fontSize: 15 }}>${READER_SLOT_PRICE * 5}</div></div>
+        </div>
+        <div onClick={() => purchaseReaderSlots(10)} style={{ ...S.card, marginBottom: 12, cursor: "pointer", border: `2px solid ${BORDER}` }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}><div><div style={{ fontWeight: 700, fontSize: 14, marginBottom: 2 }}>Add 10 reader seats</div><div style={{ fontSize: 12, color: TEXT_SEC }}>Best value for growing teams. ${READER_SLOT_PRICE * 10} CAD one-time.</div></div><div style={{ fontWeight: 700, color: BLUE, fontSize: 15 }}>${READER_SLOT_PRICE * 10}</div></div>
+        </div>
+        <div style={{ background: "linear-gradient(135deg,#0B1120,#1A3A5C)", borderRadius: 10, padding: "16px 20px", color: WHITE, cursor: "pointer" }} onClick={() => { setShowReaderPaywall(false); setShowUpgradePrompt(true); }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}><div><div style={{ fontWeight: 700, fontSize: 14, marginBottom: 2 }}>Upgrade to PolicyPro\u00AE Complete</div><div style={{ fontSize: 12, color: "#93B8FF" }}>Unlimited readers, 500+ policies, all jurisdictions. $1,699/yr.</div></div><ArrowUpRight size={18} color="#93B8FF" /></div>
+        </div>
+        {spendToUpgrade > 0 && spendToUpgrade <= 500 && <div style={{ textAlign: "center", marginTop: 14, fontSize: 12, color: TEXT_SEC }}>You're ${spendToUpgrade} CAD away from the full PolicyPro Complete subscription value.</div>}
+      </div></div>}
+
+      {/* Upgrade Prompt Modal (triggered at spend threshold) */}
+      {showUpgradePrompt && <div style={S.modal} onClick={() => setShowUpgradePrompt(false)}><div style={S.modalBox(500)} onClick={e => e.stopPropagation()}>
+        <div style={{ textAlign: "center" }}>
+          <div style={{ width: 56, height: 56, borderRadius: "50%", background: BLUE_LIGHT, display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 16px" }}><ArrowUpRight size={28} color={BLUE} /></div>
+          <h2 style={{ fontSize: 22, fontWeight: 700, marginBottom: 8 }}>You've unlocked an upgrade</h2>
+          <p style={{ fontSize: 14, color: TEXT_SEC, lineHeight: 1.6, marginBottom: 20 }}>
+            Your cumulative Essentials spend has reached ${totalSpend + ESSENTIALS_BASE_PRICE} CAD, which is close to the full PolicyPro Complete subscription at $1,699/yr. Upgrading gives you unlimited readers, 500+ policies across all areas and all 14 Canadian jurisdictions.
+          </p>
+        </div>
+        <div style={{ background: BG, borderRadius: 10, padding: 18, marginBottom: 20 }}>
+          <div style={{ fontSize: 12, fontWeight: 600, color: TEXT_SEC, marginBottom: 10 }}>Your current spend breakdown</div>
+          <div style={{ display: "flex", justifyContent: "space-between", fontSize: 13, padding: "4px 0" }}><span>Essentials base plan</span><span style={{ fontWeight: 600 }}>${ESSENTIALS_BASE_PRICE}</span></div>
+          {purchased.length > 0 && <div style={{ display: "flex", justifyContent: "space-between", fontSize: 13, padding: "4px 0" }}><span>Policy add-ons ({purchased.length})</span><span style={{ fontWeight: 600 }}>${purchased.reduce((s, id) => { const p = initAddons().find(x => x.id === id); return s + (p ? p.price : 0); }, 0)}</span></div>}
+          {purchasedReaderSlots > 0 && <div style={{ display: "flex", justifyContent: "space-between", fontSize: 13, padding: "4px 0" }}><span>Additional reader seats ({purchasedReaderSlots})</span><span style={{ fontWeight: 600 }}>${purchasedReaderSlots * READER_SLOT_PRICE}</span></div>}
+          <div style={{ borderTop: `1px solid ${BORDER}`, marginTop: 8, paddingTop: 8, display: "flex", justifyContent: "space-between", fontSize: 15, fontWeight: 700 }}><span>Total spent</span><span>${totalSpend + ESSENTIALS_BASE_PRICE} CAD</span></div>
+          <div style={{ display: "flex", justifyContent: "space-between", fontSize: 13, color: BLUE, fontWeight: 600, paddingTop: 4 }}><span>PolicyPro Complete</span><span>$1,699/yr</span></div>
+        </div>
+        <button onClick={() => { setShowUpgradePrompt(false); notify("Upgrade request submitted! Our team will reach out within 24 hours."); }} style={{ ...S.btn(undefined, true), padding: "12px 20px", fontSize: 15 }}>Upgrade to Complete</button>
+        <button onClick={() => setShowUpgradePrompt(false)} style={{ ...S.btn("outline", true), marginTop: 8 }}>Not right now</button>
       </div></div>}
 
       {/* Toast */}
