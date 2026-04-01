@@ -232,6 +232,9 @@ export default function App() {
   const [purchasedReaderSlots, setPurchasedReaderSlots] = useState(0);
   const [showReaderPaywall, setShowReaderPaywall] = useState(false);
   const [showUpgradePrompt, setShowUpgradePrompt] = useState(false);
+  const [upgradeStep, setUpgradeStep] = useState("overview"); // overview, payment, processing, success
+  const [upgradePayMethod, setUpgradePayMethod] = useState(null);
+  const [upgradeCardForm, setUpgradeCardForm] = useState({ number: "", expiry: "", cvc: "", name: "" });
 
   // Forms
   const [newPolicy, setNewPolicy] = useState({ name: "", area: "Human Resources", category: "Employment", jurisdiction: "Ontario" });
@@ -787,26 +790,103 @@ export default function App() {
         {spendToUpgrade > 0 && spendToUpgrade <= 500 && <div style={{ textAlign: "center", marginTop: 14, fontSize: 12, color: TEXT_SEC }}>You're ${spendToUpgrade} CAD away from the full PolicyPro subscription value.</div>}
       </div></div>}
 
-      {/* Upgrade Prompt Modal (triggered at spend threshold) */}
-      {showUpgradePrompt && <div style={S.modal} onClick={() => setShowUpgradePrompt(false)}><div style={S.modalBox(500)} onClick={e => e.stopPropagation()}>
-        <div style={{ textAlign: "center" }}>
-          <div style={{ width: 56, height: 56, borderRadius: "50%", background: BLUE_LIGHT, display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 16px" }}><ArrowUpRight size={28} color={BLUE} /></div>
-          <h2 style={{ fontSize: 22, fontWeight: 700, marginBottom: 8 }}>You've unlocked an upgrade</h2>
-          <p style={{ fontSize: 14, color: TEXT_SEC, lineHeight: 1.6, marginBottom: 20 }}>
-            Your cumulative Essentials spend has reached ${totalSpend + ESSENTIALS_BASE_PRICE} CAD, which is close to the full PolicyPro subscription at $1,699/yr. Upgrading gives you unlimited readers, 500+ policies across all areas and all 14 Canadian jurisdictions.
-          </p>
-        </div>
-        <div style={{ background: BG, borderRadius: 10, padding: 18, marginBottom: 20 }}>
-          <div style={{ fontSize: 12, fontWeight: 600, color: TEXT_SEC, marginBottom: 10 }}>Your current spend breakdown</div>
-          <div style={{ display: "flex", justifyContent: "space-between", fontSize: 13, padding: "4px 0" }}><span>Essentials base plan</span><span style={{ fontWeight: 600 }}>${ESSENTIALS_BASE_PRICE}</span></div>
-          {purchased.length > 0 && <div style={{ display: "flex", justifyContent: "space-between", fontSize: 13, padding: "4px 0" }}><span>Policy add-ons ({purchased.length})</span><span style={{ fontWeight: 600 }}>${purchased.reduce((s, id) => { const p = initAddons().find(x => x.id === id); return s + (p ? p.price : 0); }, 0)}</span></div>}
-          {purchasedReaderSlots > 0 && <div style={{ display: "flex", justifyContent: "space-between", fontSize: 13, padding: "4px 0" }}><span>Additional reader seats ({purchasedReaderSlots})</span><span style={{ fontWeight: 600 }}>${purchasedReaderSlots * READER_SLOT_PRICE}</span></div>}
-          <div style={{ borderTop: `1px solid ${BORDER}`, marginTop: 8, paddingTop: 8, display: "flex", justifyContent: "space-between", fontSize: 15, fontWeight: 700 }}><span>Total spent</span><span>${totalSpend + ESSENTIALS_BASE_PRICE} CAD</span></div>
-          <div style={{ display: "flex", justifyContent: "space-between", fontSize: 13, color: BLUE, fontWeight: 600, paddingTop: 4 }}><span>PolicyPro</span><span>$1,699/yr</span></div>
-        </div>
-        <button onClick={() => { setShowUpgradePrompt(false); notify("Upgrade request submitted! Our team will reach out within 24 hours."); }} style={{ ...S.btn(undefined, true), padding: "12px 20px", fontSize: 15 }}>Upgrade to PolicyPro</button>
-        <button onClick={() => setShowUpgradePrompt(false)} style={{ ...S.btn("outline", true), marginTop: 8 }}>Not right now</button>
-      </div></div>}
+      {/* Upgrade Flow Modal */}
+      {showUpgradePrompt && (() => {
+        const fullPrice = 1699;
+        const discount = Math.round(fullPrice * 0.10);
+        const discountedPrice = fullPrice - discount;
+        const existingCredit = totalSpend + ESSENTIALS_BASE_PRICE;
+        const amountDue = Math.max(0, discountedPrice - existingCredit);
+        const closeUpgrade = () => { setShowUpgradePrompt(false); setUpgradeStep("overview"); setUpgradePayMethod(null); setUpgradeCardForm({ number: "", expiry: "", cvc: "", name: "" }); };
+        return <div style={S.modal} onClick={upgradeStep === "processing" ? undefined : closeUpgrade}><div style={S.modalBox(520)} onClick={e => e.stopPropagation()}>
+
+        {upgradeStep === "overview" && (<>
+          <ModalHeader title="Upgrade to PolicyPro®" onClose={closeUpgrade} />
+          <p style={{ fontSize: 13.5, color: TEXT_SEC, lineHeight: 1.6, marginBottom: 20 }}>As an Essentials customer, you qualify for a 10% loyalty discount on the full PolicyPro subscription. Your existing spend is credited toward the upgrade.</p>
+          <div style={{ background: BG, borderRadius: 10, padding: 18, marginBottom: 20 }}>
+            <div style={{ display: "flex", justifyContent: "space-between", fontSize: 13.5, padding: "6px 0" }}><span>PolicyPro annual subscription</span><span style={{ fontWeight: 600 }}>${fullPrice.toLocaleString()}.00</span></div>
+            <div style={{ display: "flex", justifyContent: "space-between", fontSize: 13.5, padding: "6px 0", color: GREEN }}><span>Essentials loyalty discount (10%)</span><span style={{ fontWeight: 600 }}>-${discount}.00</span></div>
+            <div style={{ borderTop: `1px solid ${BORDER}`, marginTop: 6, paddingTop: 8, display: "flex", justifyContent: "space-between", fontSize: 13.5, padding: "6px 0" }}><span>Discounted price</span><span style={{ fontWeight: 700 }}>${discountedPrice.toLocaleString()}.00</span></div>
+            <div style={{ display: "flex", justifyContent: "space-between", fontSize: 13, padding: "6px 0", color: TEXT_SEC, borderTop: `1px dashed ${BORDER}`, marginTop: 6, paddingTop: 8 }}><span>Your Essentials base plan credit</span><span>-${ESSENTIALS_BASE_PRICE}.00</span></div>
+            {purchased.length > 0 && <div style={{ display: "flex", justifyContent: "space-between", fontSize: 13, padding: "4px 0", color: TEXT_SEC }}><span>Policy add-ons credit ({purchased.length} policies)</span><span>-${purchased.reduce((s, id) => { const p = initAddons().find(x => x.id === id); return s + (p ? p.price : 0); }, 0)}.00</span></div>}
+            {purchasedReaderSlots > 0 && <div style={{ display: "flex", justifyContent: "space-between", fontSize: 13, padding: "4px 0", color: TEXT_SEC }}><span>Reader seats credit ({purchasedReaderSlots} seats)</span><span>-${purchasedReaderSlots * READER_SLOT_PRICE}.00</span></div>}
+            <div style={{ borderTop: `2px solid ${BLUE}`, marginTop: 8, paddingTop: 10, display: "flex", justifyContent: "space-between", fontSize: 18, fontWeight: 700, color: BLUE }}><span>Amount due today</span><span>${amountDue.toLocaleString()}.00 CAD</span></div>
+          </div>
+          <div style={{ background: GREEN_BG, borderRadius: 8, padding: "12px 16px", fontSize: 13, marginBottom: 16, display: "flex", alignItems: "center", gap: 8, color: GREEN }}><CheckCircle size={16} /> You're saving ${(existingCredit + discount).toLocaleString()}.00 with your Essentials credit and loyalty discount</div>
+          <div style={{ fontSize: 13, color: TEXT_SEC, marginBottom: 16, lineHeight: 1.6 }}>Your upgrade includes unlimited readers, 500+ policies across all areas (HR, Finance, IT, Operations), all 14 Canadian jurisdictions, priority support, and enterprise features.</div>
+          <button onClick={() => setUpgradeStep("payment")} style={{ ...S.btn(undefined, true), padding: "12px 20px", fontSize: 15 }}>{amountDue > 0 ? `Continue to payment` : "Complete upgrade (no additional charge)"}</button>
+          <button onClick={closeUpgrade} style={{ ...S.btn("outline", true), marginTop: 8 }}>Not right now</button>
+        </>)}
+
+        {upgradeStep === "payment" && (<>
+          <ModalHeader title="Payment details" onClose={closeUpgrade} />
+          <div style={{ display: "flex", gap: 14, marginBottom: 20 }}>
+            {[{ id: "card", icon: <CreditCard size={24} />, label: "Card" }, { id: "bank", icon: <Building2 size={24} />, label: "Bank Transfer" }].map(m => (
+              <div key={m.id} onClick={() => setUpgradePayMethod(m.id)} style={{ flex: 1, padding: "14px 12px", border: `2px solid ${upgradePayMethod === m.id ? BLUE : BORDER}`, borderRadius: 10, cursor: "pointer", textAlign: "center", background: upgradePayMethod === m.id ? BLUE_LIGHT : WHITE }}>
+                <div style={{ color: upgradePayMethod === m.id ? BLUE : TEXT_SEC, marginBottom: 6 }}>{m.icon}</div>
+                <div style={{ fontSize: 13, fontWeight: 600 }}>{m.label}</div>
+              </div>
+            ))}
+          </div>
+          {upgradePayMethod === "card" && (<>
+            <div style={S.fieldGroup}><label style={S.label}>Cardholder name</label><input style={S.input} placeholder="Name on card" value={upgradeCardForm.name} onChange={e => setUpgradeCardForm({ ...upgradeCardForm, name: e.target.value })} /></div>
+            <div style={S.fieldGroup}><label style={S.label}>Card number</label><div style={{ position: "relative" }}><input style={{ ...S.input, paddingRight: 48 }} placeholder="1234 5678 9012 3456" value={upgradeCardForm.number} onChange={e => setUpgradeCardForm({ ...upgradeCardForm, number: formatCardNumber(e.target.value) })} /><CreditCard size={18} style={{ position: "absolute", right: 14, top: 12, color: TEXT_SEC }} /></div></div>
+            <div style={{ display: "flex", gap: 14 }}>
+              <div style={{ ...S.fieldGroup, flex: 1 }}><label style={S.label}>Expiry</label><input style={S.input} placeholder="MM / YY" value={upgradeCardForm.expiry} onChange={e => setUpgradeCardForm({ ...upgradeCardForm, expiry: formatExpiry(e.target.value) })} /></div>
+              <div style={{ ...S.fieldGroup, flex: 1 }}><label style={S.label}>CVC</label><input style={S.input} placeholder="123" maxLength={4} value={upgradeCardForm.cvc} onChange={e => setUpgradeCardForm({ ...upgradeCardForm, cvc: e.target.value.replace(/\D/g, "").slice(0, 4) })} /></div>
+            </div>
+          </>)}
+          {upgradePayMethod === "bank" && (<>
+            <div style={S.fieldGroup}><label style={S.label}>Account holder name</label><input style={S.input} placeholder="Full legal name" /></div>
+            <div style={S.fieldGroup}><label style={S.label}>Institution number</label><input style={S.input} placeholder="3 digits" maxLength={3} /></div>
+            <div style={{ display: "flex", gap: 14 }}>
+              <div style={{ ...S.fieldGroup, flex: 1 }}><label style={S.label}>Transit number</label><input style={S.input} placeholder="5 digits" maxLength={5} /></div>
+              <div style={{ ...S.fieldGroup, flex: 1 }}><label style={S.label}>Account number</label><input style={S.input} placeholder="7-12 digits" /></div>
+            </div>
+          </>)}
+          <div style={{ background: BG, borderRadius: 8, padding: "10px 14px", marginBottom: 16, display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: 14 }}><span style={{ color: TEXT_SEC }}>Amount due</span><span style={{ fontWeight: 700, color: BLUE, fontSize: 16 }}>${amountDue.toLocaleString()}.00 CAD</span></div>
+          <div style={{ display: "flex", gap: 10 }}>
+            <button onClick={() => setUpgradeStep("overview")} style={S.btn("outline")}><ChevronLeft size={14} /> Back</button>
+            <button disabled={!upgradePayMethod} onClick={() => { setUpgradeStep("processing"); setTimeout(() => setUpgradeStep("success"), 3000); }} style={{ ...S.btn(upgradePayMethod ? undefined : "outline", true), opacity: upgradePayMethod ? 1 : 0.5 }}>Confirm and pay ${amountDue.toLocaleString()}.00 CAD</button>
+          </div>
+          <div style={{ fontSize: 11, color: TEXT_SEC, textAlign: "center", marginTop: 10, display: "flex", alignItems: "center", justifyContent: "center", gap: 4 }}><Lock size={12} /> Secured by First Reference</div>
+        </>)}
+
+        {upgradeStep === "processing" && (
+          <div style={{ textAlign: "center", padding: "48px 0" }}>
+            <Loader2 size={44} color={BLUE} style={{ animation: "spin 1s linear infinite", marginBottom: 20 }} />
+            <div style={{ fontSize: 18, fontWeight: 700, marginBottom: 6 }}>Processing your upgrade...</div>
+            <div style={{ fontSize: 13.5, color: TEXT_SEC }}>Please do not close this window</div>
+          </div>
+        )}
+
+        {upgradeStep === "success" && (
+          <div>
+            <div style={{ textAlign: "center", marginBottom: 20 }}>
+              <div style={{ width: 56, height: 56, borderRadius: "50%", background: GREEN_BG, display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 16px" }}><CheckCircle size={28} color={GREEN} /></div>
+              <h2 style={{ fontSize: 22, fontWeight: 700, marginBottom: 6 }}>Welcome to PolicyPro®</h2>
+              <div style={{ fontSize: 13, color: TEXT_SEC }}>Receipt #{receiptNo}</div>
+            </div>
+            <div style={{ background: BG, borderRadius: 10, padding: 18, marginBottom: 16 }}>
+              <div style={{ display: "flex", justifyContent: "space-between", fontSize: 13, padding: "4px 0" }}><span>PolicyPro annual</span><span>${fullPrice.toLocaleString()}.00</span></div>
+              <div style={{ display: "flex", justifyContent: "space-between", fontSize: 13, padding: "4px 0", color: GREEN }}><span>Loyalty discount (10%)</span><span>-${discount}.00</span></div>
+              <div style={{ display: "flex", justifyContent: "space-between", fontSize: 13, padding: "4px 0", color: TEXT_SEC }}><span>Essentials credit applied</span><span>-${existingCredit.toLocaleString()}.00</span></div>
+              <div style={{ borderTop: `1px solid ${BORDER}`, marginTop: 4, paddingTop: 6, display: "flex", justifyContent: "space-between", fontSize: 15, fontWeight: 700 }}><span>Charged</span><span>${amountDue.toLocaleString()}.00 CAD</span></div>
+            </div>
+            <div style={{ background: BLUE_BG, borderRadius: 10, padding: "18px 20px", marginBottom: 16 }}>
+              <div style={{ fontSize: 14, fontWeight: 700, color: TEXT_C, marginBottom: 8 }}>What happens next</div>
+              <div style={{ fontSize: 13, color: TEXT_SEC, lineHeight: 1.7 }}>Your Essentials account will be cancelled in 48 hours and our team is already working on migrating your policies to your full PolicyPro experience. Your new login credentials will be sent to your email shortly.</div>
+            </div>
+            <div style={{ background: BG, borderRadius: 8, padding: "12px 16px", display: "flex", alignItems: "center", gap: 10, marginBottom: 20 }}>
+              <div style={{ width: 32, height: 32, borderRadius: 8, background: BLUE_LIGHT, display: "flex", alignItems: "center", justifyContent: "center" }}><FileText size={16} color={BLUE} /></div>
+              <div><div style={{ fontSize: 13, fontWeight: 600 }}>Credentials sent via email</div><div style={{ fontSize: 12, color: TEXT_SEC }}>Check your inbox for your new PolicyPro login details</div></div>
+            </div>
+            <button onClick={closeUpgrade} style={{ ...S.btn(undefined, true), padding: "12px 20px", fontSize: 15 }}>Got it</button>
+          </div>
+        )}
+
+      </div></div>;
+      })()}
 
       {/* Toast */}
       {toast && <div style={S.toast}><CheckCircle size={16} color={GREEN} />{toast}</div>}
