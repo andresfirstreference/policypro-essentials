@@ -601,10 +601,14 @@ export default function App() {
 
   const renderStore = () => {
     const addonsData = initAddons();
-    const sessionSpend = ESSENTIALS_BASE_PRICE + totalSpend;
-    const upgradeTarget = 1699;
-    const progressPct = Math.min((sessionSpend / upgradeTarget) * 100, 100);
-    const freeUpgrade = sessionSpend >= upgradeTarget;
+    const fullPrice = 1699;
+    const discountedTarget = Math.round(fullPrice * 0.90); // $1,529 with 10% loyalty discount
+    const purchasedSpend = purchased.reduce((s, id) => { const p = initAddons().find(x => x.id === id); return s + (p ? p.price : 0); }, 0);
+    const cartSpend = cart.reduce((s, p) => s + p.price, 0);
+    const sessionSpend = ESSENTIALS_BASE_PRICE + purchasedSpend + (purchasedReaderSlots * READER_SLOT_PRICE) + cartSpend;
+    const progressPct = Math.min((sessionSpend / discountedTarget) * 100, 100);
+    const freeUpgrade = sessionSpend >= discountedTarget;
+    const remaining = Math.max(0, discountedTarget - sessionSpend);
     return (<div>
     <h1 style={S.pageTitle}>Policy store</h1>
     <div style={S.infoBanner}>Expand your policy coverage beyond HR essentials. Purchase individual policies with expert commentary, compliance guidance, and automatic updates.</div>
@@ -637,38 +641,44 @@ export default function App() {
     </div>))}
     {/* Upgrade section with progress bar */}
     <div style={{ background: "linear-gradient(135deg,#0B1120,#1A3A5C)", borderRadius: 12, padding: "28px 28px 24px", color: WHITE }}>
+      {/* Loyalty callout */}
+      <div style={{ display: "inline-flex", alignItems: "center", gap: 6, background: "rgba(147,184,255,0.15)", borderRadius: 20, padding: "5px 14px", fontSize: 12, fontWeight: 600, color: "#93B8FF", marginBottom: 14 }}><Sparkles size={13} /> Thanks for choosing Essentials. You get a 10% loyalty discount on your upgrade.</div>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 16 }}>
         <div>
-          <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase", color: "#93B8FF", marginBottom: 6 }}>Full access</div>
           <div style={{ fontSize: 20, fontWeight: 700, marginBottom: 6 }}>Upgrade to PolicyPro®</div>
           <div style={{ fontSize: 13.5, color: "#B0C4DE", lineHeight: 1.6 }}>
             {freeUpgrade
-              ? "Your total spend has reached $1,699. You qualify for a free upgrade to the full PolicyPro experience with unlimited readers, 500+ policies, and all jurisdictions."
-              : `Get access to all 500+ policies across every area and jurisdiction. Essentials customers get a 10% loyalty discount, and all your current spend is credited toward the upgrade.`}
+              ? "Your spend (including items in your cart) covers the full discounted upgrade price. Complete your upgrade at no additional cost."
+              : `500+ policies, all areas, all jurisdictions, unlimited readers. Your 10% discount brings the target from $${fullPrice.toLocaleString()} to $${discountedTarget.toLocaleString()}. Everything you spend is credited.`}
           </div>
         </div>
-        <button onClick={() => setShowUpgradePrompt(true)} style={{ ...S.btn(), background: WHITE, color: BLUE, flexShrink: 0, marginLeft: 20, whiteSpace: "nowrap" }}>
+        <button onClick={() => setShowUpgradePrompt(true)} style={{ ...S.btn(), background: freeUpgrade ? GREEN : WHITE, color: freeUpgrade ? WHITE : BLUE, flexShrink: 0, marginLeft: 20, whiteSpace: "nowrap" }}>
           {freeUpgrade ? <><Sparkles size={14} /> Upgrade now (free)</> : <><ArrowUpRight size={14} /> Upgrade now</>}
         </button>
       </div>
       {/* Progress bar */}
-      <div style={{ marginBottom: 8 }}>
+      <div style={{ marginBottom: 4 }}>
         <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12, color: "#7A8FAA", marginBottom: 6 }}>
-          <span>Your total spend: ${sessionSpend.toLocaleString()} CAD</span>
-          <span>{freeUpgrade ? "Free upgrade unlocked!" : `$${(upgradeTarget - sessionSpend).toLocaleString()} away from free upgrade`}</span>
+          <span>Your total: ${sessionSpend.toLocaleString()} CAD</span>
+          <span>{freeUpgrade ? "Free upgrade unlocked!" : `$${remaining.toLocaleString()} away`}</span>
         </div>
         <div style={{ height: 8, background: "rgba(255,255,255,0.12)", borderRadius: 4, overflow: "hidden" }}>
           <div style={{ height: "100%", width: `${progressPct}%`, background: freeUpgrade ? GREEN : "linear-gradient(90deg, #3B82F6, #93B8FF)", borderRadius: 4, transition: "width 0.5s ease" }} />
         </div>
         <div style={{ display: "flex", justifyContent: "space-between", fontSize: 11, color: "#5A7A9A", marginTop: 4 }}>
           <span>$0</span>
-          <span>$1,699 (full PolicyPro)</span>
+          <span>${discountedTarget.toLocaleString()} (with 10% discount)</span>
         </div>
       </div>
-      {!freeUpgrade && <div style={{ fontSize: 12, color: "#93B8FF", marginTop: 8 }}>
-        Base plan (${ESSENTIALS_BASE_PRICE}){totalSpend > 0 ? ` + add-ons ($${totalSpend})` : ""} = ${sessionSpend} total.
-        {sessionSpend >= 1000 ? " You're close!" : ""}
-      </div>}
+      {/* Breakdown */}
+      <div style={{ fontSize: 12, color: "#7A8FAA", marginTop: 8, display: "flex", flexWrap: "wrap", gap: 4 }}>
+        <span>Base (${ESSENTIALS_BASE_PRICE})</span>
+        {purchasedSpend > 0 && <span>+ purchased add-ons (${purchasedSpend})</span>}
+        {purchasedReaderSlots > 0 && <span>+ reader seats (${purchasedReaderSlots * READER_SLOT_PRICE})</span>}
+        {cartSpend > 0 && <span style={{ color: "#93B8FF" }}>+ in cart (${cartSpend})</span>}
+        <span>= ${sessionSpend.toLocaleString()} total</span>
+        {!freeUpgrade && sessionSpend >= discountedTarget * 0.75 && <span style={{ color: "#93B8FF", fontWeight: 600 }}> Almost there!</span>}
+      </div>
     </div>
   </div>);
   };
