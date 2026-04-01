@@ -162,16 +162,16 @@ const ModalHeader = ({ title, onClose }) => (
   </div>
 );
 
-const Pagination = ({ total, perPage, page, onChange }) => {
-  const pages = Math.ceil(total / perPage);
+const Pagination = ({ total, perPage, page, onChange, onPerPageChange }) => {
+  const pages = Math.ceil(total / perPage) || 1;
   return (
     <div style={{ display: "flex", justifyContent: "flex-end", alignItems: "center", gap: 12, padding: "14px 16px", fontSize: 13, color: TEXT_SEC }}>
       Rows per page
-      <select style={{ fontFamily: "'Noto Sans',sans-serif", padding: "4px 8px", borderRadius: 6, border: `1px solid ${BORDER}`, fontSize: 12 }} value={perPage} readOnly><option>{perPage}</option></select>
-      <span>Page {page} of {pages || 1}</span>
+      <select style={{ fontFamily: "'Noto Sans',sans-serif", padding: "4px 8px", borderRadius: 6, border: `1px solid ${BORDER}`, fontSize: 12 }} value={perPage} onChange={e => { if (onPerPageChange) onPerPageChange(Number(e.target.value)); onChange(1); }}><option value={10}>10</option><option value={25}>25</option><option value={50}>50</option></select>
+      <span>Page {page} of {pages}</span>
       <div style={{ display: "flex", gap: 4 }}>
-        <span onClick={() => page > 1 && onChange(page - 1)} style={{ cursor: page > 1 ? "pointer" : "default", opacity: page > 1 ? 1 : 0.3 }}><ChevronLeft size={16} /></span>
-        <span onClick={() => page < pages && onChange(page + 1)} style={{ cursor: page < pages ? "pointer" : "default", opacity: page < pages ? 1 : 0.3 }}><ChevronRight size={16} /></span>
+        <span onClick={() => page > 1 && onChange(page - 1)} style={{ cursor: page > 1 ? "pointer" : "default", opacity: page > 1 ? 1 : 0.3, padding: "2px 4px" }}><ChevronLeft size={16} /></span>
+        <span onClick={() => page < pages && onChange(page + 1)} style={{ cursor: page < pages ? "pointer" : "default", opacity: page < pages ? 1 : 0.3, padding: "2px 4px" }}><ChevronRight size={16} /></span>
       </div>
     </div>
   );
@@ -204,6 +204,8 @@ export default function App() {
 
   // UI
   const [searchQuery, setSearchQuery] = useState("");
+  const [pgPage, setPgPage] = useState(1);
+  const [pgPerPage, setPgPerPage] = useState(10);
   const [filterArea, setFilterArea] = useState("");
   const [filterCat, setFilterCat] = useState("");
   const [filterJuris, setFilterJuris] = useState("");
@@ -228,7 +230,7 @@ export default function App() {
   const [newReader, setNewReader] = useState({ name: "", email: "", role: "Reader", group: "" });
 
   const currentPage = subPage || page;
-  const handleNav = (id, pid) => { if (pid) { setPage(pid); setSubPage(id); } else { setPage(id); setSubPage(null); } setSearchQuery(""); setFilterArea(""); setFilterCat(""); setFilterJuris(""); setSelectedRows(new Set()); };
+  const handleNav = (id, pid) => { if (pid) { setPage(pid); setSubPage(id); } else { setPage(id); setSubPage(null); } setSearchQuery(""); setFilterArea(""); setFilterCat(""); setFilterJuris(""); setSelectedRows(new Set()); setPgPage(1); };
   const isActive = id => currentPage === id;
   const isParentActive = (pid, ch) => ch?.some(c => c.id === currentPage);
 
@@ -333,7 +335,7 @@ export default function App() {
     return f;
   };
 
-  const resetFilters = () => { setSearchQuery(""); setFilterArea(""); setFilterCat(""); setFilterJuris(""); };
+  const resetFilters = () => { setSearchQuery(""); setFilterArea(""); setFilterCat(""); setFilterJuris(""); setPgPage(1); };
 
   const getReportData = () => {
     const data = [];
@@ -513,6 +515,7 @@ export default function App() {
 
   const renderMyPolicies = () => {
     const filtered = filterPolicies(myPolicies);
+    const paged = filtered.slice((pgPage - 1) * pgPerPage, pgPage * pgPerPage);
     return (<div>
       <h1 style={S.pageTitle}>My policies</h1>
       <div style={S.infoBanner}>Get access to your documents. Your Essentials plan includes Ontario HR policies. You can purchase additional policies from the <span onClick={() => handleNav("store", "hub")} style={{ color: BLUE, fontWeight: 600, cursor: "pointer" }}>Policy Store</span> or create one from scratch.</div>
@@ -521,10 +524,10 @@ export default function App() {
         <div style={{ display: "flex", gap: 8 }}>{selectedRows.size > 0 && <button style={S.btn("danger")} onClick={deleteSelected}><Trash2 size={14} /> Delete ({selectedRows.size})</button>}</div>
         <div style={{ display: "flex", gap: 10 }}><button style={S.btn("outline")} onClick={() => setShowCreatePolicy(true)}>Create policy</button><button onClick={() => handleNav("library", "hub")} style={S.btn()}><Plus size={14} /> Add policy from library</button></div>
       </div>
-      <div style={S.card}><table style={S.table}><thead><tr><th style={{ ...S.th, width: 30 }}><input type="checkbox" onChange={e => { if (e.target.checked) setSelectedRows(new Set(filtered.map(p => p.id))); else setSelectedRows(new Set()); }} /></th><th style={S.th}>Name</th><th style={S.th}>Last Update</th><th style={S.th}>Status</th><th style={S.th}>Version</th></tr></thead>
-      <tbody>{filtered.map(p => (<tr key={p.id} style={{ cursor: "pointer" }} onClick={() => { setPolicyDetail(p); markAccessed(p.id); }}><td style={S.td}><input type="checkbox" checked={selectedRows.has(p.id)} onClick={e => e.stopPropagation()} onChange={() => toggleRow(p.id)} /></td><td style={S.td}><div style={{ fontWeight: 600, marginBottom: 2 }}>{p.name}</div><div style={{ fontSize: 12, color: TEXT_SEC }}>{p.area} · {p.jurisdiction} · {p.category}</div></td><td style={S.td}>{p.lastUpdate}</td><td style={S.td}><span style={S.badge(p.status === "Published" ? GREEN : AMBER)}><span style={S.dot(p.status === "Published" ? GREEN : AMBER)} /> {p.status}</span></td><td style={S.td}>{p.version}</td></tr>))}</tbody></table>
+      <div style={S.card}><table style={S.table}><thead><tr><th style={{ ...S.th, width: 30 }}><input type="checkbox" onChange={e => { if (e.target.checked) setSelectedRows(new Set(paged.map(p => p.id))); else setSelectedRows(new Set()); }} /></th><th style={S.th}>Name</th><th style={S.th}>Last Update</th><th style={S.th}>Status</th><th style={S.th}>Version</th></tr></thead>
+      <tbody>{paged.map(p => (<tr key={p.id} style={{ cursor: "pointer" }} onClick={() => { setPolicyDetail(p); markAccessed(p.id); }}><td style={S.td}><input type="checkbox" checked={selectedRows.has(p.id)} onClick={e => e.stopPropagation()} onChange={() => toggleRow(p.id)} /></td><td style={S.td}><div style={{ fontWeight: 600, marginBottom: 2 }}>{p.name}</div><div style={{ fontSize: 12, color: TEXT_SEC }}>{p.area} · {p.jurisdiction} · {p.category}</div></td><td style={S.td}>{p.lastUpdate}</td><td style={S.td}><span style={S.badge(p.status === "Published" ? GREEN : AMBER)}><span style={S.dot(p.status === "Published" ? GREEN : AMBER)} /> {p.status}</span></td><td style={S.td}>{p.version}</td></tr>))}</tbody></table>
       {filtered.length === 0 && <div style={{ textAlign: "center", padding: 32, color: TEXT_SEC }}>No policies found matching your filters.</div>}
-      <Pagination total={filtered.length} perPage={10} page={1} onChange={() => {}} /></div>
+      <Pagination total={filtered.length} perPage={pgPerPage} page={pgPage} onChange={setPgPage} onPerPageChange={setPgPerPage} /></div>
     </div>);
   };
 
