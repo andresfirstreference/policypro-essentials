@@ -125,9 +125,9 @@ function exportCSV(data, filename) {
 /* ── Styles ─────────────────────────────────── */
 const S = {
   app: { display: "flex", height: "100vh", fontFamily: "'Noto Sans',sans-serif", background: BG, color: TEXT, fontSize: 14, overflow: "hidden" },
-  sidebar: { width: 200, minWidth: 200, background: WHITE, borderRight: `1px solid ${BORDER}`, display: "flex", flexDirection: "column", justifyContent: "space-between", overflowY: "auto", overflowX: "hidden" },
+  sidebar: { width: 212, minWidth: 212, background: WHITE, borderRight: `1px solid ${BORDER}`, display: "flex", flexDirection: "column", justifyContent: "space-between", overflowY: "auto", overflowX: "hidden" },
   navItem: a => ({ display: "flex", alignItems: "center", gap: 10, padding: "9px 14px", margin: "1px 8px", borderRadius: 8, cursor: "pointer", fontSize: 13.5, fontWeight: a ? 600 : 500, background: a ? BLUE : "transparent", color: a ? WHITE : TEXT_SEC, transition: "all 0.15s ease", whiteSpace: "nowrap" }),
-  navSub: a => ({ display: "flex", alignItems: "center", gap: 8, padding: "7px 14px 7px 44px", margin: "1px 8px", borderRadius: 6, cursor: "pointer", fontSize: 13, fontWeight: a ? 600 : 400, color: a ? BLUE : TEXT_SEC, background: a ? BLUE_LIGHT : "transparent" }),
+  navSub: a => ({ display: "flex", alignItems: "center", gap: 8, padding: "7px 14px 7px 40px", margin: "1px 8px", borderRadius: 6, cursor: "pointer", fontSize: 13, fontWeight: a ? 600 : 400, color: a ? BLUE : TEXT_SEC, background: a ? BLUE_LIGHT : "transparent" }),
   content: { flex: 1, padding: "28px 32px 40px", overflow: "auto" },
   pageTitle: { fontSize: 28, fontWeight: 700, color: BLUE, marginBottom: 12 },
   infoBanner: { background: BLUE_BG, borderRadius: 8, padding: "12px 18px", marginBottom: 24, fontSize: 13.5, lineHeight: 1.6 },
@@ -219,6 +219,8 @@ export default function App() {
   const [showAddToManual, setShowAddToManual] = useState(null);
   const [showEditGroup, setShowEditGroup] = useState(null);
   const [showRestore, setShowRestore] = useState(false);
+  const [showEditManual, setShowEditManual] = useState(false);
+  const [editManual, setEditManual] = useState(null);
 
   // Forms
   const [newPolicy, setNewPolicy] = useState({ name: "", area: "Human Resources", category: "Employment", jurisdiction: "Ontario" });
@@ -530,8 +532,8 @@ export default function App() {
     <h1 style={S.pageTitle}>My manuals</h1>
     <div style={S.infoBanner}>Manage your policy manuals from here. You can create, download, and maintain manuals.</div>
     <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: 16 }}><button style={S.btn()} onClick={() => setShowCreateManual(true)}><Plus size={14} /> Create manual</button></div>
-    <div style={S.card}><table style={S.table}><thead><tr><th style={S.th}>Name</th><th style={S.th}>Policies</th><th style={S.th}>Jurisdiction</th><th style={S.th}>Last Update</th><th style={S.th}></th></tr></thead>
-    <tbody>{manuals.map(m => (<tr key={m.id}><td style={{ ...S.td, fontWeight: 600 }}>{m.name}</td><td style={S.td}>{m.policyIds.length} policies</td><td style={S.td}>{m.jurisdiction}</td><td style={S.td}>{m.lastUpdate}</td><td style={{ ...S.td, textAlign: "right" }}><button onClick={() => { const mPols = myPolicies.filter(p => m.policyIds.includes(p.id)); mPols.forEach(p => generatePDF(p)); notify("Manual downloaded as PDFs"); }} style={S.btn("outline")}><Download size={14} /> Download</button></td></tr>))}</tbody></table></div>
+    <div style={S.card}><table style={S.table}><thead><tr><th style={S.th}>Name</th><th style={S.th}>Policies</th><th style={S.th}>Jurisdiction</th><th style={S.th}>Last Update</th><th style={{ ...S.th, textAlign: "right" }}>Actions</th></tr></thead>
+    <tbody>{manuals.map(m => (<tr key={m.id}><td style={{ ...S.td, fontWeight: 600, cursor: "pointer" }} onClick={() => { setEditManual({ ...m }); setShowEditManual(true); }}>{m.name}</td><td style={S.td}>{m.policyIds.length} policies</td><td style={S.td}>{m.jurisdiction}</td><td style={S.td}>{m.lastUpdate}</td><td style={{ ...S.td, textAlign: "right", display: "flex", gap: 8, justifyContent: "flex-end" }}><button onClick={() => { setEditManual({ ...m }); setShowEditManual(true); }} style={{ ...S.btn("outline"), padding: "6px 12px", fontSize: 12.5 }}><Pencil size={13} /> Edit</button><button onClick={() => { const mPols = myPolicies.filter(p => m.policyIds.includes(p.id)); mPols.forEach(p => generatePDF(p)); notify("Manual downloaded as PDFs"); }} style={{ ...S.btn("outline"), padding: "6px 12px", fontSize: 12.5 }}><Download size={13} /> Download</button><button onClick={() => { setManuals(prev => prev.filter(x => x.id !== m.id)); notify("Manual deleted"); }} style={{ ...S.btn("outline"), padding: "6px 12px", fontSize: 12.5, color: RED, boxShadow: `inset 0 0 0 1.5px ${RED}30` }}><Trash2 size={13} /></button></td></tr>))}</tbody></table></div>
   </div>);
 
   const renderArchived = () => (<div><h1 style={S.pageTitle}>Archived</h1><div style={S.infoBanner}>All versions of your policies are stored here.</div><div style={S.card}><table style={S.table}><thead><tr><th style={S.th}>Name</th><th style={S.th}>Modified</th><th style={S.th}>Modified By</th></tr></thead><tbody><tr><td colSpan={3} style={{ ...S.td, textAlign: "center", color: TEXT_SEC, padding: 40 }}>No archived policies yet. Previous versions will appear here when you update a policy.</td></tr></tbody></table></div></div>);
@@ -679,6 +681,14 @@ export default function App() {
 
       {/* Restore Purchases Modal */}
       {showRestore && <div style={S.modal} onClick={() => setShowRestore(false)}><div style={S.modalBox(480)} onClick={e => e.stopPropagation()}><ModalHeader title="Restore purchases" onClose={() => setShowRestore(false)} /><div style={S.infoBanner}>Policies that have been opened or downloaded cannot be restored. Only unused policies are eligible for removal and refund.</div>{purchased.map(id => { const p = initAddons().find(x => x.id === id); const accessed = accessedPolicies.has(id); return p ? <div key={id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "12px 0", borderBottom: `1px solid ${BORDER}` }}><div><div style={{ fontWeight: 600, fontSize: 13.5 }}>{p.name}</div><div style={{ fontSize: 12, color: TEXT_SEC }}>${p.price} CAD · {p.area}</div></div>{accessed ? <span style={{ fontSize: 12, color: TEXT_SEC, display: "inline-flex", alignItems: "center", gap: 4 }}><Lock size={12} /> Cannot restore</span> : <button onClick={() => { restorePolicy(id); }} style={{ ...S.btn("outline"), fontSize: 12, padding: "6px 14px", color: RED, boxShadow: `inset 0 0 0 1.5px ${RED}30` }}><RotateCcw size={12} /> Restore</button>}</div> : null; })}{purchased.length === 0 && <div style={{ textAlign: "center", padding: 24, color: TEXT_SEC }}>No purchased add-ons to restore.</div>}</div></div>}
+
+      {/* Edit Manual Modal */}
+      {showEditManual && editManual && <div style={S.modal} onClick={() => setShowEditManual(false)}><div style={S.modalBox(520)} onClick={e => e.stopPropagation()}><ModalHeader title="Edit manual" onClose={() => setShowEditManual(false)} />
+        <div style={S.fieldGroup}><label style={S.label}>Manual name</label><input style={S.input} value={editManual.name} onChange={e => setEditManual({ ...editManual, name: e.target.value })} /></div>
+        <div style={S.fieldGroup}><label style={S.label}>Jurisdiction</label><select style={S.select} value={editManual.jurisdiction} onChange={e => setEditManual({ ...editManual, jurisdiction: e.target.value })}>{JURISDICTIONS.map(j => <option key={j}>{j}</option>)}</select></div>
+        <div style={S.fieldGroup}><label style={S.label}>Policies in this manual</label><div style={{ maxHeight: 240, overflowY: "auto", border: `1px solid ${BORDER}`, borderRadius: 8, padding: 8 }}>{myPolicies.map(p => <label key={p.id} style={{ display: "flex", alignItems: "center", gap: 8, padding: "6px 8px", cursor: "pointer", fontSize: 13 }}><input type="checkbox" checked={editManual.policyIds.includes(p.id)} onChange={e => { if (e.target.checked) setEditManual({ ...editManual, policyIds: [...editManual.policyIds, p.id] }); else setEditManual({ ...editManual, policyIds: editManual.policyIds.filter(x => x !== p.id) }); }} />{p.name}</label>)}</div></div>
+        <div style={{ display: "flex", gap: 10 }}><button onClick={() => setShowEditManual(false)} style={S.btn("outline")}>Cancel</button><button onClick={() => { setManuals(prev => prev.map(m => m.id === editManual.id ? { ...editManual, lastUpdate: new Date().toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }) } : m)); setShowEditManual(false); notify("Manual updated"); }} style={{ ...S.btn(undefined, true) }}>Save changes ({editManual.policyIds.length} policies)</button></div>
+      </div></div>}
 
       {/* Toast */}
       {toast && <div style={S.toast}><CheckCircle size={16} color={GREEN} />{toast}</div>}
