@@ -231,6 +231,7 @@ export default function App() {
   const [editManual, setEditManual] = useState(null);
   const [purchasedReaderSlots, setPurchasedReaderSlots] = useState(0);
   const [showReaderPaywall, setShowReaderPaywall] = useState(false);
+  const [showCartPreview, setShowCartPreview] = useState(false);
   const [showUpgradePrompt, setShowUpgradePrompt] = useState(false);
   const [upgradeStep, setUpgradeStep] = useState("overview"); // overview, payment, processing, success
   const [upgradePayMethod, setUpgradePayMethod] = useState(null);
@@ -598,17 +599,79 @@ export default function App() {
     </div>);
   };
 
-  const renderStore = () => (<div>
+  const renderStore = () => {
+    const addonsData = initAddons();
+    const sessionSpend = ESSENTIALS_BASE_PRICE + totalSpend;
+    const upgradeTarget = 1699;
+    const progressPct = Math.min((sessionSpend / upgradeTarget) * 100, 100);
+    const freeUpgrade = sessionSpend >= upgradeTarget;
+    return (<div>
     <h1 style={S.pageTitle}>Policy store</h1>
     <div style={S.infoBanner}>Expand your policy coverage beyond HR essentials. Purchase individual policies with expert commentary, compliance guidance, and automatic updates.</div>
-    <div style={{ display: "flex", gap: 16, marginBottom: 28, flexWrap: "wrap" }}>
+    <div style={{ display: "flex", gap: 16, marginBottom: 28 }}>
       {[{ area: "Finance & Accounting", count: 3, icon: <DollarSign size={22} />, color: "#7C3AED", bg: "#F3EEFF" },{ area: "Information Technology", count: 3, icon: <Monitor size={22} />, color: "#0891B2", bg: "#ECFEFF" },{ area: "Operations & Marketing", count: 2, icon: <Cog size={22} />, color: "#B45309", bg: "#FFF7ED" }].map((c,i) => (
-        <div key={i} style={{ ...S.card, flex: 1, minWidth: 200, border: `1.5px solid ${c.color}30`, borderRadius: 12 }}><div style={{ ...S.iconWrap(c.color, c.bg), marginBottom: 12, width: 44, height: 44 }}>{c.icon}</div><div style={{ fontSize: 15, fontWeight: 700, marginBottom: 4 }}>{c.area}</div><div style={{ fontSize: 13, color: TEXT_SEC }}>{c.count} policies available</div></div>
+        <div key={i} style={{ ...S.card, flex: 1, border: `1.5px solid ${c.color}30`, borderRadius: 12 }}><div style={{ ...S.iconWrap(c.color, c.bg), marginBottom: 12, width: 44, height: 44 }}>{c.icon}</div><div style={{ fontSize: 15, fontWeight: 700, marginBottom: 4 }}>{c.area}</div><div style={{ fontSize: 13, color: TEXT_SEC }}>{c.count} policies available</div></div>
       ))}
     </div>
-    {["Finance & Accounting","Information Technology","Operations & Marketing"].map(area => (<div key={area} style={{ marginBottom: 28 }}><h2 style={{ fontSize: 17, fontWeight: 700, marginBottom: 14 }}>{area}</h2><div style={{ display: "flex", gap: 14, flexWrap: "wrap" }}>{initAddons().filter(p => p.area === area).map(p => { const own = purchased.includes(p.id); const inC = cart.find(c => c.id === p.id); return (<div key={p.id} style={{ ...S.card, flex: "1 1 280px", maxWidth: 340, display: "flex", flexDirection: "column", justifyContent: "space-between" }}><div><div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 8 }}><div style={{ fontSize: 14.5, fontWeight: 700, lineHeight: 1.4, paddingRight: 8 }}>{p.name}</div>{own ? <span style={{ ...S.badge(GREEN, GREEN_BG), fontSize: 11, whiteSpace: "nowrap" }}>Owned</span> : <span style={{ ...S.priceBadge, fontSize: 12 }}>${p.price}</span>}</div><div style={{ fontSize: 12.5, color: TEXT_SEC, marginBottom: 4 }}>{p.category}</div><div style={{ fontSize: 12, color: TEXT_SEC }}>Jurisdiction: {p.jurisdiction}</div></div><div style={{ marginTop: 16 }}>{own ? <button onClick={() => { const pol = myPolicies.find(x => x.id === p.id); if (pol) { setPolicyDetail(pol); markAccessed(pol.id); } }} style={{ ...S.btn("outline", true), fontSize: 12.5 }}><Eye size={14} /> View policy</button> : inC ? <button onClick={() => removeFromCart(p.id)} style={{ ...S.btn("outline", true), fontSize: 12.5, color: RED, boxShadow: `inset 0 0 0 1.5px ${RED}30` }}>Remove from cart</button> : <button onClick={() => addToCart(p)} style={{ ...S.btn(undefined, true), fontSize: 12.5 }}><ShoppingCart size={14} /> Add to cart · ${p.price} CAD</button>}</div></div>); })}</div></div>))}
-    <div style={{ background: "linear-gradient(135deg,#0B1120,#1A3A5C)", borderRadius: 12, padding: "24px 28px", color: WHITE }}><div style={{ fontSize: 11, fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase", color: "#93B8FF", marginBottom: 6 }}>Full access</div><div style={{ fontSize: 18, fontWeight: 700, marginBottom: 6 }}>Upgrade to PolicyPro®</div><div style={{ fontSize: 13.5, color: "#B0C4DE", lineHeight: 1.6, marginBottom: 16 }}>Get access to all 500+ policies across every area and jurisdiction for $1,699/year.</div><button style={{ ...S.btn(), background: WHITE, color: BLUE }}><ArrowUpRight size={14} /> Learn about upgrade</button></div>
+    {["Finance & Accounting","Information Technology","Operations & Marketing"].map(area => (<div key={area} style={{ marginBottom: 28 }}>
+      <h2 style={{ fontSize: 17, fontWeight: 700, marginBottom: 14 }}>{area}</h2>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 14 }}>
+        {addonsData.filter(p => p.area === area).map(p => { const own = purchased.includes(p.id); const inC = cart.find(c => c.id === p.id); return (
+          <div key={p.id} style={{ ...S.card, display: "flex", flexDirection: "column", justifyContent: "space-between", minHeight: 180 }}>
+            <div>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 8 }}>
+                <div style={{ fontSize: 14.5, fontWeight: 700, lineHeight: 1.4, paddingRight: 8 }}>{p.name}</div>
+                {own ? <span style={{ ...S.badge(GREEN, GREEN_BG), fontSize: 11, whiteSpace: "nowrap" }}>Owned</span> : <span style={{ ...S.priceBadge, fontSize: 12 }}>${p.price}</span>}
+              </div>
+              <div style={{ fontSize: 12.5, color: TEXT_SEC, marginBottom: 4 }}>{p.category}</div>
+              <div style={{ fontSize: 12, color: TEXT_SEC }}>Jurisdiction: {p.jurisdiction}</div>
+            </div>
+            <div style={{ marginTop: 16 }}>
+              {own ? <button onClick={() => { const pol = myPolicies.find(x => x.id === p.id); if (pol) { setPolicyDetail(pol); markAccessed(pol.id); } }} style={{ ...S.btn("outline", true), fontSize: 12.5 }}><Eye size={14} /> View policy</button>
+              : inC ? <button onClick={() => removeFromCart(p.id)} style={{ ...S.btn("outline", true), fontSize: 12.5, color: RED, boxShadow: `inset 0 0 0 1.5px ${RED}30` }}>Remove from cart</button>
+              : <button onClick={() => addToCart(p)} style={{ ...S.btn(undefined, true), fontSize: 12.5 }}><ShoppingCart size={14} /> Add to cart · ${p.price} CAD</button>}
+            </div>
+          </div>
+        ); })}
+      </div>
+    </div>))}
+    {/* Upgrade section with progress bar */}
+    <div style={{ background: "linear-gradient(135deg,#0B1120,#1A3A5C)", borderRadius: 12, padding: "28px 28px 24px", color: WHITE }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 16 }}>
+        <div>
+          <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase", color: "#93B8FF", marginBottom: 6 }}>Full access</div>
+          <div style={{ fontSize: 20, fontWeight: 700, marginBottom: 6 }}>Upgrade to PolicyPro®</div>
+          <div style={{ fontSize: 13.5, color: "#B0C4DE", lineHeight: 1.6 }}>
+            {freeUpgrade
+              ? "Your total spend has reached $1,699. You qualify for a free upgrade to the full PolicyPro experience with unlimited readers, 500+ policies, and all jurisdictions."
+              : `Get access to all 500+ policies across every area and jurisdiction. Essentials customers get a 10% loyalty discount, and all your current spend is credited toward the upgrade.`}
+          </div>
+        </div>
+        <button onClick={() => setShowUpgradePrompt(true)} style={{ ...S.btn(), background: WHITE, color: BLUE, flexShrink: 0, marginLeft: 20, whiteSpace: "nowrap" }}>
+          {freeUpgrade ? <><Sparkles size={14} /> Upgrade now (free)</> : <><ArrowUpRight size={14} /> Upgrade now</>}
+        </button>
+      </div>
+      {/* Progress bar */}
+      <div style={{ marginBottom: 8 }}>
+        <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12, color: "#7A8FAA", marginBottom: 6 }}>
+          <span>Your total spend: ${sessionSpend.toLocaleString()} CAD</span>
+          <span>{freeUpgrade ? "Free upgrade unlocked!" : `$${(upgradeTarget - sessionSpend).toLocaleString()} away from free upgrade`}</span>
+        </div>
+        <div style={{ height: 8, background: "rgba(255,255,255,0.12)", borderRadius: 4, overflow: "hidden" }}>
+          <div style={{ height: "100%", width: `${progressPct}%`, background: freeUpgrade ? GREEN : "linear-gradient(90deg, #3B82F6, #93B8FF)", borderRadius: 4, transition: "width 0.5s ease" }} />
+        </div>
+        <div style={{ display: "flex", justifyContent: "space-between", fontSize: 11, color: "#5A7A9A", marginTop: 4 }}>
+          <span>$0</span>
+          <span>$1,699 (full PolicyPro)</span>
+        </div>
+      </div>
+      {!freeUpgrade && <div style={{ fontSize: 12, color: "#93B8FF", marginTop: 8 }}>
+        Base plan (${ESSENTIALS_BASE_PRICE}){totalSpend > 0 ? ` + add-ons ($${totalSpend})` : ""} = ${sessionSpend} total.
+        {sessionSpend >= 1000 ? " You're close!" : ""}
+      </div>}
+    </div>
   </div>);
+  };
 
   const renderReaderGroups = () => (<div><h1 style={S.pageTitle}>Reader groups</h1><div style={S.infoBanner}>Manage your list of readers, add new ones, and organize them into groups.</div><div style={{ display: "flex", justifyContent: "flex-end", marginBottom: 16 }}><button style={S.btn()} onClick={() => { const name = prompt("Enter group name:"); if (name) { setGroups(prev => [...prev, { id: Date.now(), name, members: [] }]); notify("Group created"); } }}><Plus size={14} /> Create group</button></div><div style={S.card}><table style={S.table}><thead><tr><th style={S.th}>Group Name</th><th style={S.th}>Members</th><th style={S.th}></th></tr></thead><tbody>{groups.map(g => (<tr key={g.id}><td style={{ ...S.td, fontWeight: 600 }}>{g.name}</td><td style={S.td}>{g.members.length} readers <span onClick={() => handleNav("list-readers", "readers")} style={{ color: BLUE, marginLeft: 8, cursor: "pointer", fontWeight: 500 }}>View List</span></td><td style={{ ...S.td, textAlign: "right" }}><span style={{ color: TEXT_SEC, cursor: "pointer", display: "inline-flex", alignItems: "center", gap: 4 }}><Pencil size={14} /> Edit</span></td></tr>))}</tbody></table></div></div>);
 
@@ -727,7 +790,16 @@ export default function App() {
       <div style={{ flex: 1, overflow: "auto", display: "flex", flexDirection: "column" }}>
         <div style={{ background: WHITE, borderBottom: `1px solid ${BORDER}`, padding: "12px 32px", display: "flex", justifyContent: "flex-end", alignItems: "center", minHeight: 52, flexShrink: 0 }}>
           <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
-            <div style={{ position: "relative", cursor: "pointer" }} onClick={() => setCheckoutStep(prev => prev ? null : "cart")}><ShoppingCart size={18} color={TEXT_SEC} />{cart.length > 0 && <div style={S.cardBadge}>{cart.length}</div>}</div>
+            <div style={{ position: "relative" }} onMouseEnter={() => cart.length > 0 && setShowCartPreview(true)} onMouseLeave={() => setShowCartPreview(false)}>
+              <div style={{ cursor: "pointer", padding: 4 }} onClick={() => { setShowCartPreview(false); setCheckoutStep(prev => prev ? null : "cart"); }}><ShoppingCart size={18} color={TEXT_SEC} />{cart.length > 0 && <div style={S.cardBadge}>{cart.length}</div>}</div>
+              {showCartPreview && cart.length > 0 && <div style={{ position: "absolute", top: 36, right: 0, width: 300, background: WHITE, borderRadius: 12, border: `1px solid ${BORDER}`, boxShadow: "0 8px 30px rgba(0,0,0,0.12)", padding: "14px 16px", zIndex: 100 }}>
+                <div style={{ fontSize: 12, fontWeight: 700, color: TEXT_SEC, textTransform: "uppercase", letterSpacing: "0.04em", marginBottom: 10 }}>{cart.length} item{cart.length > 1 ? "s" : ""} in cart</div>
+                {cart.slice(0, 4).map(p => <div key={p.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "6px 0", fontSize: 13 }}><span style={{ fontWeight: 500, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: 200 }}>{p.name}</span><span style={{ fontWeight: 700, flexShrink: 0 }}>${p.price}</span></div>)}
+                {cart.length > 4 && <div style={{ fontSize: 12, color: TEXT_SEC, paddingTop: 4 }}>+{cart.length - 4} more</div>}
+                <div style={{ borderTop: `1px solid ${BORDER}`, marginTop: 8, paddingTop: 8, display: "flex", justifyContent: "space-between", fontSize: 14, fontWeight: 700 }}><span>Total</span><span>${cartTotal} CAD</span></div>
+                <div style={{ fontSize: 11, color: BLUE, fontWeight: 600, marginTop: 6, cursor: "pointer" }} onClick={() => { setShowCartPreview(false); setCheckoutStep("cart"); }}>View cart and checkout</div>
+              </div>}
+            </div>
             <div style={{ fontSize: 13, color: TEXT_SEC, textAlign: "right", lineHeight: 1.3 }}><div style={{ fontWeight: 600, color: TEXT }}>Canadian Company 2026</div><div>Andres Guzman</div></div>
             <div style={{ width: 34, height: 34, borderRadius: "50%", background: BLUE_LIGHT, color: BLUE, display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 700, fontSize: 13 }}>AG</div>
           </div>
