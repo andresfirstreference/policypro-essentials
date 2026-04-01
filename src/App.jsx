@@ -647,7 +647,7 @@ export default function App() {
       <div style={{ flex: 1, overflow: "auto", display: "flex", flexDirection: "column" }}>
         <div style={{ background: WHITE, borderBottom: `1px solid ${BORDER}`, padding: "12px 32px", display: "flex", justifyContent: "flex-end", alignItems: "center", minHeight: 52, flexShrink: 0 }}>
           <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
-            <div style={{ position: "relative", cursor: "pointer" }} onClick={() => { if (cart.length) setCheckoutStep("method"); else setCheckoutStep(null); setCheckoutStep(prev => prev ? null : "cart"); }}><ShoppingCart size={18} color={TEXT_SEC} />{cart.length > 0 && <div style={S.cardBadge}>{cart.length}</div>}</div>
+            <div style={{ position: "relative", cursor: "pointer" }} onClick={() => setCheckoutStep(prev => prev ? null : "cart")}><ShoppingCart size={18} color={TEXT_SEC} />{cart.length > 0 && <div style={S.cardBadge}>{cart.length}</div>}</div>
             <div style={{ fontSize: 13, color: TEXT_SEC, textAlign: "right", lineHeight: 1.3 }}><div style={{ fontWeight: 600, color: TEXT }}>Canadian Company 2026</div><div>Andres Guzman</div></div>
             <div style={{ width: 34, height: 34, borderRadius: "50%", background: BLUE_LIGHT, color: BLUE, display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 700, fontSize: 13 }}>AG</div>
           </div>
